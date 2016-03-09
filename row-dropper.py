@@ -3,6 +3,7 @@ from cassandra.query import dict_factory
 from docopt import docopt
 
 import logging
+import time
 
 logging.basicConfig()
 LOG = logging.getLogger('row-dropper')
@@ -30,7 +31,12 @@ def main(arguments):
     cluster = Cluster([contact_ip], port=int(port))
     session = cluster.connect(keyspace)
 
-    session.execute("CREATE INDEX IF NOT EXISTS ON {} ({})".format(table, filter_column))
+    session.execute("CREATE INDEX IF NOT EXISTS rowdropper ON {} ({})".format(table, filter_column))
+
+    def index_is_built(session, keyspace):
+        return len(list(session.execute(
+            """SELECT * FROM system."IndexInfo"
+               WHERE table_name ='{}' AND index_name='rowdropper'""".format(keyspace)))) == 1
 
     table_metadata = cluster.metadata.keyspaces[keyspace].tables[table]
     partition_key_columns = table_metadata.partition_key
@@ -50,6 +56,10 @@ def main(arguments):
     primary_key_column_select = ', '.join(primary_key_column_names)
     partition_key_column = partition_key_columns[0]
 
+    while not index_is_built(session, keyspace):
+        LOG.debug("Waiting for index to finish building.")
+        time.sleep(1)
+
     highest_filter_value = list(session.execute("SELECT max({}) FROM {}".format(filter_column, table)))[0][0]
 
     session.row_factory = dict_factory
@@ -61,6 +71,8 @@ def main(arguments):
 
     full_delete_string = ' and '.join(delete_strings)
     session.execute("DELETE FROM {} WHERE {}".format(table, full_delete_string))
+
+    session.execute("DROP INDEX rowdropper") # Need this as a workaround for CASSANDRA-11331
 
 if __name__ == '__main__':
     arguments = docopt(__doc__)
