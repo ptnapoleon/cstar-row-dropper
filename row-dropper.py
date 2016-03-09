@@ -72,8 +72,6 @@ def main(arguments):
     full_delete_string = ' and '.join(delete_strings)
     session.execute("DELETE FROM {} WHERE {}".format(table, full_delete_string))
 
-    session.execute("DROP INDEX rowdropper") # Need this as a workaround for CASSANDRA-11331
-
 if __name__ == '__main__':
     arguments = docopt(__doc__)
     main(arguments)
