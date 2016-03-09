@@ -30,6 +30,8 @@ def main(arguments):
     cluster = Cluster([contact_ip], port=int(port))
     session = cluster.connect(keyspace)
 
+    session.execute("CREATE INDEX IF NOT EXISTS ON {} ({})".format(table, filter_column))
+
     table_metadata = cluster.metadata.keyspaces[keyspace].tables[table]
     partition_key_columns = table_metadata.partition_key
     primary_key_columns = table_metadata.primary_key
@@ -48,7 +50,6 @@ def main(arguments):
     primary_key_column_select = ', '.join(primary_key_column_names)
     partition_key_column = partition_key_columns[0]
 
-    # session.execute("CREATE INDEX IF NOT EXISTS ON {} ({})".format(table, filter_column))
     highest_filter_value = list(session.execute("SELECT max({}) FROM {}".format(filter_column, table)))[0][0]
 
     session.row_factory = dict_factory
